@@ -10,6 +10,6 @@ setup(
     url='https://github.com/coopie/lazychef',
     download_url='https://github.com/coopie/lazychef/archive/master.zip',
     license='MIT',
-    install_requires=['pyyaml', 'h5py', 'numpy'],
+    install_requires=['h5py', 'numpy'],
     packages=['lazychef']
 )

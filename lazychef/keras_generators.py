@@ -1,3 +1,7 @@
+"""
+Classes to use for training keras models with `model.train_gen`.
+"""
+
 
 class KerasGenerator(object):
     """Base class for a generator for keras. This class is used for autoencoders, where X is the same value as Y.

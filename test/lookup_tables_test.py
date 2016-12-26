@@ -3,7 +3,8 @@ import os
 import numpy as np
 
 from lazychef.lookup_tables import *
-from lazychef.util import yaml_to_dict
+
+from test.util import yaml_to_dict
 
 DUMMY_DATA_PATH = os.path.join('test', 'dummy_data', 'metadata')
 

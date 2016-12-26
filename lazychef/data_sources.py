@@ -21,7 +21,7 @@ class DataSource(object):
 
     def __getitem__(self, key):
         if isinstance(key, Iterable) and type(key) != str:
-            return (self._process(uri) for uri in key)
+            return [self._process(uri) for uri in key]
         else:
             return self._process(key)
 
