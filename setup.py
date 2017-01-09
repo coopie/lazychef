@@ -1,9 +1,10 @@
 from setuptools import setup
 
+from lazychef import VERSION
 
 setup(
     name='lazychef',
-    version='0.0.1',
+    version=VERSION,
     description='Build machine pipelines that are lazily evaluated',
     author='Sam Coope',
     author_email='sam.j.coope@gmail.com',

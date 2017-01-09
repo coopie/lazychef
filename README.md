@@ -15,3 +15,11 @@ Lazychef tries to (one more sentence)
 
 TODOs:
 examples working with scipy, tensorflow and keras
+
+
+### Distribution
+make sure to remove older versions of the package
+```
+python setup.py sdist bdist_wheel
+twine upload dist/*
+```
