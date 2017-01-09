@@ -24,6 +24,7 @@ class LookupTable(object):
 
 class TTVLookupTable(LookupTable):
     """Use a ttv split to create a lookup table.
+    TTV can have one or more of 'test', 'train', 'validation' keys representing datasets
 
     Also exposes slices of the lookup table corresponding to different data sets(i.e. test, train, validation sets).
 

@@ -5,7 +5,7 @@ import numpy.testing as npt
 import h5py
 
 from lazychef.data_sources import *
-from lazychef.util import yaml_to_dict
+from test.util import yaml_to_dict
 
 DUMMY_DATA_PATH = os.path.join('test', 'dummy_data')
 
