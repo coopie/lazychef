@@ -4,6 +4,7 @@ Classes to wrap Datasource objects around to make generators for mini-batch trai
 import numpy as np
 import logging
 
+
 class Generator(object):
     """Base class for a generator.
     """
@@ -93,6 +94,6 @@ class LogEpochEndCallback(Callback):
     def __init__(self, epochs_completed=0):
         self.epochs_completed = epochs_completed
 
-    def on_epoch_end(self, ):
+    def on_epoch_end(self, *args):
         self.epochs_completed += 1
         logging.info('Compeleted epoch {}'.format(self.epochs_completed))

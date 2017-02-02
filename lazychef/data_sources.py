@@ -5,12 +5,12 @@ They are used as a way of both describing the transformation of data and computi
 
 import os
 from collections import Iterable
-from abc import abstractmethod
+from abc import abstractmethod, ABCMeta
 import numpy as np
 from numbers import Integral
 
 
-class Datasource(object):
+class Datasource(metaclass=ABCMeta):
     """Base class for all Datasources.
 
     Note that the default __getitem__ returns a generator (for lazier evaluation).
@@ -61,7 +61,7 @@ class LambdaDatasource(Datasource):
         return self.function(self.data_source[ident])
 
 
-class ArrayDatasource(object):
+class ArrayDatasource(metaclass=ABCMeta):
     """
     TODO: why this
     Array Datasources must have a fixed size at creation.
@@ -95,6 +95,18 @@ class ArrayDatasource(object):
     def _process_multiple(self, indices):
         idices = [neg_index_to_positive(idx, len(self)) for idx in indices]
         return np.array([self._process(idx) for idx in idices])
+
+
+class LambdaArrayDatasource(ArrayDatasource):
+    def __init__(self, data_source, f):
+        self.data_source = data_source
+        self.f = f
+
+    def __len__(self):
+        return len(self.data_source)
+
+    def _process(self, idx):
+        return self.f(self.data_source[idx])
 
 
 def neg_index_to_positive(idx, length):
