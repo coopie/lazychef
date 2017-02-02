@@ -5,13 +5,13 @@ import h5py
 from .lookup_tables import TTVLookupTable
 
 
-class ArrayLikeDatasource(Datasource):
+class ArrayLikeDatasource():
     """Base class for ArrayLikeDatasources. These are used as a way of treating the data as if it were one big numpy array.
 
     All calls for __getitem__ in classes inheriting from this should return __instantiated__ data.
     """
     @abstractmethod
-    def __getitem___(self, key):
+    def __getitem__(self, key):
         pass
 
     @abstractmethod
