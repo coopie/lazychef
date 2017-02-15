@@ -27,7 +27,7 @@ class Generator(object):
         return self._next_batch()
 
     def __call__(self):
-        return next(self)
+        return self.__next__()
 
 
 class DatasetGenerator(Generator):
