@@ -1,19 +1,25 @@
 import unittest
 import os
 import numpy as np
-import numpy.testing as npt
 import h5py
 
-from lazychef.data_sources import *
-from test.util import yaml_to_dict
+from lazychef.data_sources import (
+    Datasource,
+    LambdaDatasource,
+    ArrayDatasource,
+    FileDatasource,
+    CachedArrayDataSource
+)
+
 
 DUMMY_DATA_PATH = os.path.join('test', 'dummy_data')
+CACHE_PATH = 'test.cache.hdf5'
 
 
-class DataSourcesTests(unittest.TestCase):
+class DatasourcesTests(unittest.TestCase):
 
     def test_file_data_source(self):
-        ds = FileDataSource(DUMMY_DATA_PATH, suffix='.wav')
+        ds = FileDatasource(DUMMY_DATA_PATH, suffix='.wav')
 
         self.assertTrue(
             os.path.isfile(ds['1_sad_kid_1'])
@@ -30,53 +36,10 @@ class DataSourcesTests(unittest.TestCase):
             )
         )
 
-
-    def test_waveform_data_source(self):
-        ds = WaveformDataSource(FileDataSource(DUMMY_DATA_PATH, suffix='.wav'), process_waveform=dummy_process_waveforms)
-
-        self.assertTrue(
-            np.all(
-                ds['1_sad_kid_1'] == np.array(2)
-            )
-        )
-
-        paths = [os.path.join(DUMMY_DATA_PATH, f) for f in os.listdir(DUMMY_DATA_PATH) if f.endswith('.wav')]
-        filenames = [x.split(os.sep)[-1].split('.')[0] for x in paths]
-
-        npt.assert_array_equal(
-            np.array([ds[f] for f in filenames]),
-            np.array([dummy_process_waveforms(p)[1] for p in paths])
-        )
-
-
-    def test_spectrogram_data_source(self):
-        ds = \
-            SpectrogramDataSource(
-                WaveformDataSource(
-                    FileDataSource(DUMMY_DATA_PATH, suffix='.wav'),
-                    process_waveform=dummy_process_waveforms),
-                dummy_process_spectrograms
-            )
-
-        self.assertTrue(
-            np.all(
-                ds['1_sad_kid_1'] == np.eye(2) * 2
-            )
-        )
-
-        paths = [os.path.join(DUMMY_DATA_PATH, f) for f in os.listdir(DUMMY_DATA_PATH) if f.endswith('.wav')]
-        filenames = [x.split(os.sep)[-1].split('.')[0] for x in paths]
-
-        npt.assert_array_equal(
-            np.array([ds[f] for f in filenames]),
-            np.array([dummy_process_spectrograms(dummy_process_waveforms(p)[1])[-1] for p in paths])
-        )
-
-
     def test_lambda_data_source(self):
-        data_source = DummyDataSource()
+        data_source = DummyDatasource()
 
-        lam_ds = LambdaDataSource(lambda x: x + 1, data_source)
+        lam_ds = LambdaDatasource(data_source, lambda x: x + 1)
 
         for key in ['blorp_2', 'blerp_1', 'shlerp_322']:
             self.assertEqual(
@@ -84,117 +47,56 @@ class DataSourcesTests(unittest.TestCase):
                 data_source.data[key] + 1
             )
 
+    def test_array_data_source(self):
+        data = np.arange(10)
+        data_source = DummyArrayDatasource(data)
 
-    def test_ttv_array_like_data_source(self):
-        dummy_data_source = DummyDataSource()
-        subject_info_dir = os.path.join('test', 'dummy_data', 'metadata')
-        ttv = yaml_to_dict(os.path.join(subject_info_dir, 'dummy_ttv.yaml'))
-
-        array_ds = TTVArrayLikeDataSource(dummy_data_source, ttv)
-
-        self.assertEqual(len(array_ds), 3)
-
-        all_values = np.fromiter((x for x in array_ds[:]), dtype='int16')
+        for i in range(len(data_source)):
+            self.assertEqual(data_source[i], data[i])
 
         self.assertTrue(
-            np.all(
-                np.in1d(
-                    all_values,
-                    np.array([1, 2, 3])
-                )
+            np.array_equal(
+                data_source[:],
+                data
+            )
+        )
+        self.assertTrue(
+            np.array_equal(
+                data_source[-1],
+                data[-1]
+            )
+        )
+        self.assertTrue(
+            np.array_equal(
+                data_source[1:4:2],
+                data[1:4:2]
             )
         )
 
+    def test_cached_array_datasource(self):
+        array_ds = np.ones((100, 2)) * np.arange(100).reshape((-1, 1))
+        ds = CachedArrayDataSource(array_ds, CACHE_PATH, 100)
+        assert not ds.cache_complete
 
-    def test_subarray_like_data_source(self):
-        dummy_data_source = DummyDataSource()
-        subject_info_dir = os.path.join('test', 'dummy_data', 'metadata')
-        ttv = yaml_to_dict(os.path.join(subject_info_dir, 'dummy_ttv.yaml'))
+        cache = h5py.File(CACHE_PATH, 'a')
 
-        array_ds = TTVArrayLikeDataSource(dummy_data_source, ttv)
+        data = ds[:]
+        assert np.array_equal(array_ds, data), 'First values from ds not same as data'
+        assert ds.cache_complete, 'datasource should be cache_complete'
 
+        # Now the cache should be instantiated, so changing a value in it should show
+        # up in the datasource
+        cache[CachedArrayDataSource.DATA_NAME][0, 0] = 123
+        assert np.array_equal(ds[0], np.array([123, 0]))
 
-        def get_all_values_set(ttv, set_name):
-            data_set = ttv[set_name]
-            uris = []
-            for subjectID in data_set:
-                uris += data_set[subjectID]
-            return uris
-
-        for set_name in ['test', 'train', 'validation']:
-            set_ds = array_ds.get_set(set_name)
-
-            self.assertTrue(len(set_ds), 1)
-
-            self.assertEqual(
-                [x for x in set_ds[:]],
-                [dummy_data_source[x] for x in get_all_values_set(ttv, set_name)]
-            )
-
-
-    def test_cached_ttv_array_like_data_source(self):
-        dummy_data_source = DummyDataSource()
-        subject_info_dir = os.path.join('test', 'dummy_data', 'metadata')
-        ttv = yaml_to_dict(os.path.join(subject_info_dir, 'dummy_ttv.yaml'))
-
-        array_ds = CachedTTVArrayLikeDataSource(dummy_data_source, ttv, data_name='dummy', cache_name='test')
-
-        self.assertEqual(len(array_ds), 3)
-
-        all_values = array_ds[:]
-
-        self.assertTrue(
-            np.all(
-                np.in1d(
-                    all_values,
-                    np.array([1, 2, 3])
-                )
-            )
-        )
-
-        f = h5py.File('test.cache.hdf5', 'a')
-        self.assertEqual(len(f['dummy']), len(array_ds))
-
-        for in_cache, in_data_source in zip(f['dummy'], array_ds):
-            self.assertTrue(
-                np.all(
-                    in_cache == in_data_source
-                )
-            )
-
-        # changing a value in the cache now should alter the results returned by the dataset.
-        # adressing is to change the value of the test example, which is currently set to 2
-        f['dummy'][array_ds.get_set('test').lower] = 322
-        all_values = all_values = array_ds[:]
-        self.assertTrue(
-            np.all(
-                np.in1d(
-                    all_values,
-                    np.array([322, 1, 3])
-                )
-            )
-        )
-
-        # now resetting the cache, we shoud get the original results
-        f['dummy' + CachedTTVArrayLikeDataSource.CACHE_BITARRAY_SUFFIX][:] = False
-        array_ds._CachedTTVArrayLikeDataSource__init_existence_cache()
-
-        all_values = array_ds[:]
-        self.assertTrue(
-            np.all(
-                np.in1d(
-                    all_values,
-                    np.array([1, 2, 3])
-                )
-            )
-        )
+        # test unorderd indexing, as h5py does not support it
+        ds[[5, 4, 3, 2, 1]]
 
 
     @classmethod
     def tearDownClass(cls):
-        if os.path.exists('test.cache.hdf5'):
-            os.remove('test.cache.hdf5')
-
+        if os.path.exists(CACHE_PATH):
+            os.remove(CACHE_PATH)
 
 
 def dummy_process_waveforms(path):
@@ -214,23 +116,7 @@ def dummy_process_spectrograms(waveform, *unused):
     return (frequencies, times, np.eye(2) * waveform)
 
 
-class dummyExampleDataSource():
-    def __init__(arr):
-        self.arr = arr
-
-    def get_set(set_name):
-        set_division = {
-            'test': [1],
-            'train': [2, 3],
-            'validation': [4]
-        }
-        return dummyExampleDataSource(self.arr[set_division[set_name]])
-
-    def __getitem__(self, key):
-        return self.arr[key, 0], self.arr[key, 1]
-
-
-class DummyDataSource(DataSource):
+class DummyDatasource(Datasource):
     def __init__(self):
         self.data = {
             'blorp_2': np.array(1) * 1,
@@ -240,6 +126,17 @@ class DummyDataSource(DataSource):
 
     def _process(self, key):
         return self.data[key]
+
+
+class DummyArrayDatasource(ArrayDatasource):
+    def __init__(self, a):
+        self.a = a
+
+    def _process(self, idx):
+        return self.a[idx]
+
+    def __len__(self):
+        return len(self.a)
 
 
 if __name__ == '__main__':

@@ -2,6 +2,7 @@
 Classes to wrap Datasource objects around to make generators for mini-batch training.
 """
 import numpy as np
+import logging
 
 
 class Generator(object):
@@ -25,6 +26,9 @@ class Generator(object):
     def __next__(self):
         return self._next_batch()
 
+    def __call__(self):
+        return self.__next__()
+
 
 class DatasetGenerator(Generator):
     """Generator for fixed-size datasets."""
@@ -39,7 +43,7 @@ class DatasetGenerator(Generator):
         Arguments:
             `data_sources`: These must all have the same length as each other.
         """
-        assert len(data_sources) > 0, 'Must have at least one DataSource in generator.'
+        assert len(data_sources) > 0, 'Must have at least one Datasource in generator.'
         assert all([len(data_sources[0]) == len(ds) for ds in data_sources]), \
             'Datasources are not all the same length.'
 
@@ -83,3 +87,13 @@ class ShuffleDatasetCallback(Callback):
 
     def on_epoch_end(self, generator, *args):
         self.random.shuffle(generator.shuffle_indices)
+
+
+class LogEpochEndCallback(Callback):
+    """Shuffle the dataset every epoch."""
+    def __init__(self, epochs_completed=0):
+        self.epochs_completed = epochs_completed
+
+    def on_epoch_end(self, *args):
+        self.epochs_completed += 1
+        logging.info('Compeleted epoch {}'.format(self.epochs_completed))
