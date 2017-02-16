@@ -1,11 +1,19 @@
 import unittest
 import os
 import numpy as np
+import h5py
 
-from lazychef.data_sources import Datasource, LambdaDatasource, ArrayDatasource, FileDatasource
+from lazychef.data_sources import (
+    Datasource,
+    LambdaDatasource,
+    ArrayDatasource,
+    FileDatasource,
+    CachedArrayDataSource
+)
 
 
 DUMMY_DATA_PATH = os.path.join('test', 'dummy_data')
+CACHE_PATH = 'test.cache.hdf5'
 
 
 class DatasourcesTests(unittest.TestCase):
@@ -65,10 +73,30 @@ class DatasourcesTests(unittest.TestCase):
             )
         )
 
+    def test_cached_array_datasource(self):
+        array_ds = np.ones((100, 2)) * np.arange(100).reshape((-1, 1))
+        ds = CachedArrayDataSource(array_ds, CACHE_PATH, 100)
+        assert not ds.cache_complete
+
+        cache = h5py.File(CACHE_PATH, 'a')
+
+        data = ds[:]
+        assert np.array_equal(array_ds, data), 'First values from ds not same as data'
+        assert ds.cache_complete, 'datasource should be cache_complete'
+
+        # Now the cache should be instantiated, so changing a value in it should show
+        # up in the datasource
+        cache[CachedArrayDataSource.DATA_NAME][0, 0] = 123
+        assert np.array_equal(ds[0], np.array([123, 0]))
+
+        # test unorderd indexing, as h5py does not support it
+        ds[[5, 4, 3, 2, 1]]
+
+
     @classmethod
     def tearDownClass(cls):
-        if os.path.exists('test.cache.hdf5'):
-            os.remove('test.cache.hdf5')
+        if os.path.exists(CACHE_PATH):
+            os.remove(CACHE_PATH)
 
 
 def dummy_process_waveforms(path):

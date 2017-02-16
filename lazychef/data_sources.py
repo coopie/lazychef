@@ -8,6 +8,7 @@ from collections import Iterable
 from abc import abstractmethod, ABCMeta
 import numpy as np
 from numbers import Integral
+import h5py
 
 
 class Datasource(metaclass=ABCMeta):
@@ -71,7 +72,7 @@ class ArrayDatasource(metaclass=ABCMeta):
         Key can be one of:
             * An integer
             * A list of integers
-            * A list of bools (not supported yet)
+            * A list of bools (TODO)
             * A slice
         """
         if is_int_like(key):
@@ -107,6 +108,85 @@ class LambdaArrayDatasource(ArrayDatasource):
 
     def _process(self, idx):
         return self.f(self.data_source[idx])
+
+
+class CachedArrayDataSource(ArrayDatasource):
+    CACHE_BITARRAY = '_bitarray'
+    DATA_NAME = 'data'
+    FILE_SUFFIX = '.cache.hdf5'
+
+    def __init__(
+        self,
+        data_source,
+        cache_name,
+        size=None
+    ):
+        """
+        TODO
+        Arguments:
+            size: size declared when `data_source` is a non-fixed-size data_source. If None, use len(data_source)
+            cache_name: path to the hdf5 file holding the cached data. If the name doesnt finish with .cache.hdf5, it's appended to the end of the name.
+        """
+        self.data_source = data_source
+        if size is None:
+            size = len(data_source)
+        self.size = size
+
+        self.__init_cache(cache_name)
+
+    def __len__(self):
+        return self.size
+
+    def __init_cache(self, cache_name):
+        if not cache_name.endswith(self.FILE_SUFFIX):
+            cache_name += self.FILE_SUFFIX
+        cache = h5py.File(cache_name, 'a')
+
+        if self.DATA_NAME not in cache:
+            self.__create_cache(cache)
+
+        self.cached_data = cache[self.DATA_NAME]
+        self.existence_cache = cache[self.CACHE_BITARRAY]
+        self.__update_cache_complete()
+        # more here
+
+    def __create_cache(self, cache):
+        """
+        Create the cache and the existence array
+        """
+        number_of_samples = len(self)
+        example_input = self.data_source[0]
+        cache.create_dataset(
+            self.DATA_NAME,
+            shape=(number_of_samples,) + example_input.shape,
+            dtype=example_input.dtype
+        )
+        # currently not a bit array techincally
+        cache.create_dataset(
+            self.CACHE_BITARRAY,
+            data=np.zeros(number_of_samples, dtype=np.uint8)
+        )
+
+    def _process(self, index):
+        if self.existence_cache[index]:
+            return self.cached_data[index]
+        else:
+            data = self.data_source[index]
+            self.cached_data[index] = data
+            self.existence_cache[index] = 1
+            return data
+
+    def __update_cache_complete(self):
+        self.cache_complete = np.all(self.existence_cache)
+
+    def _process_multiple(self, indices):
+        idices = [neg_index_to_positive(idx, len(self)) for idx in indices]
+        if self.cache_complete:
+            return np.array([self.cached_data[idx] for idx in indices])
+        else:
+            data = np.array([self._process(idx) for idx in idices])
+            self.__update_cache_complete()
+            return data
 
 
 def neg_index_to_positive(idx, length):
