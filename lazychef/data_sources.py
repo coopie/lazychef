@@ -130,7 +130,7 @@ class ArrayDatasource(metaclass=ABCMeta):
 
 
 class LambdaArrayDatasource(ArrayDatasource):
-    def __init__(self, data_source, f):
+    def __init__(self, data_source, f, size=None):
         self.data_source = data_source
         self.f = f
 
@@ -139,6 +139,32 @@ class LambdaArrayDatasource(ArrayDatasource):
 
     def _process(self, idx):
         return self.f(self.data_source[idx])
+
+
+class ArrayLikeAdressAdapter(ArrayDatasource):
+    def __init__(self, data_source, index_fn, size=None):
+        """
+        TODO
+        Arguments:
+            * size: return value of len(ArrayLikeAdressAdapter).
+                Only needed if `data_source` does not have a __len__ method
+        """
+        self.data_source = data_source
+        self.index_fn = index_fn
+        if not hasattr(data_source, '__len__') and size is None:
+            raise RuntimeError(
+                'Datasource: {} does not have a __len__ attribute and size is not given'.format(data_source)
+            )
+        self.__size = size
+
+    def __len__(self):
+        if self.__size is None:
+            return len(self.data_source)
+        else:
+            return self.__size
+
+    def _process(self, idx):
+        return self.data_source[self.index_fn(idx)]
 
 
 class CachedArrayDatasource(ArrayDatasource):
@@ -155,8 +181,10 @@ class CachedArrayDatasource(ArrayDatasource):
         """
         TODO
         Arguments:
-            size: size declared when `data_source` is a non-fixed-size data_source. If None, use len(data_source)
-            cache_name: path to the hdf5 file holding the cached data. If the name doesnt finish with .cache.hdf5, it's appended to the end of the name.
+            size: size declared when `data_source` is a non-fixed-size data_source.
+                If None, use len(data_source)
+            cache_name: path to the hdf5 file holding the cached data.
+                If the name doesnt finish with .cache.hdf5, it's appended to the end of the name.
         """
         self.data_source = data_source
         if size is None:
