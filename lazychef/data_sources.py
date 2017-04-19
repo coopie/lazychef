@@ -62,6 +62,37 @@ class LambdaDatasource(Datasource):
         return self.function(self.data_source[ident])
 
 
+class CachedDatasource(Datasource):
+    FILE_SUFFIX = '.cache.hdf5'
+
+    def __init__(
+        self,
+        data_source,
+        cache_name
+    ):
+        """
+        TODO
+        Arguments:
+            cache_name: path to the hdf5 file holding the cached data.
+                If the name doesnt finish with .cache.hdf5, it's appended to the end of the name.
+        """
+        self.data_source = data_source
+        self.__init_cache(cache_name)
+
+    def __init_cache(self, cache_name):
+        if not cache_name.endswith(self.FILE_SUFFIX):
+            cache_name += self.FILE_SUFFIX
+        self.cache = h5py.File(cache_name, 'a')
+
+    def _process(self, ident):
+        if ident in self.cache:
+            return self.cache[ident][:]
+        else:
+            data = self.data_source[ident]
+            self.cache[ident] = data
+            return data
+
+
 class ArrayDatasource(metaclass=ABCMeta):
     """
     TODO: why this
@@ -110,7 +141,7 @@ class LambdaArrayDatasource(ArrayDatasource):
         return self.f(self.data_source[idx])
 
 
-class CachedArrayDataSource(ArrayDatasource):
+class CachedArrayDatasource(ArrayDatasource):
     CACHE_BITARRAY = '_bitarray'
     DATA_NAME = 'data'
     FILE_SUFFIX = '.cache.hdf5'

@@ -8,11 +8,13 @@ from lazychef.data_sources import (
     LambdaDatasource,
     ArrayDatasource,
     FileDatasource,
-    CachedArrayDataSource
+    CachedArrayDatasource,
+    CachedDatasource
 )
 
 
 DUMMY_DATA_PATH = os.path.join('test', 'dummy_data')
+CACHE_ARRAY_PATH = 'test_array.cache.hdf5'
 CACHE_PATH = 'test.cache.hdf5'
 
 
@@ -47,6 +49,29 @@ class DatasourcesTests(unittest.TestCase):
                 data_source.data[key] + 1
             )
 
+    def test_cached_data_source(self):
+        y = {
+            str(i): np.repeat(i, i)
+            for i in range(10)
+        }
+        x = CachedDatasource(y, CACHE_PATH)
+
+        data = [x[str(i)] for i in range(10)]
+        data2 = [x[str(i)] for i in range(10)]
+
+        for d, d2 in zip(data, data2):
+            np.testing.assert_array_equal(d, d2)
+
+        # change underlying data
+        for i in range(10):
+            y[str(i)] = np.array([123])
+
+        for cached, new in zip(
+            [x[str(i)] for i in range(10)],
+            [y[str(i)] for i in range(10)]
+        ):
+            assert not np.array_equal(cached, new)
+
     def test_array_data_source(self):
         data = np.arange(10)
         data_source = DummyArrayDatasource(data)
@@ -75,10 +100,10 @@ class DatasourcesTests(unittest.TestCase):
 
     def test_cached_array_datasource(self):
         array_ds = np.ones((100, 2)) * np.arange(100).reshape((-1, 1))
-        ds = CachedArrayDataSource(array_ds, CACHE_PATH, 100)
+        ds = CachedArrayDatasource(array_ds, CACHE_ARRAY_PATH, 100)
         assert not ds.cache_complete
 
-        cache = h5py.File(CACHE_PATH, 'a')
+        cache = h5py.File(CACHE_ARRAY_PATH, 'a')
 
         data = ds[:]
         assert np.array_equal(array_ds, data), 'First values from ds not same as data'
@@ -86,34 +111,18 @@ class DatasourcesTests(unittest.TestCase):
 
         # Now the cache should be instantiated, so changing a value in it should show
         # up in the datasource
-        cache[CachedArrayDataSource.DATA_NAME][0, 0] = 123
+        cache[CachedArrayDatasource.DATA_NAME][0, 0] = 123
         assert np.array_equal(ds[0], np.array([123, 0]))
 
         # test unorderd indexing, as h5py does not support it
         ds[[5, 4, 3, 2, 1]]
 
-
     @classmethod
     def tearDownClass(cls):
+        if os.path.exists(CACHE_ARRAY_PATH):
+            os.remove(CACHE_ARRAY_PATH)
         if os.path.exists(CACHE_PATH):
             os.remove(CACHE_PATH)
-
-
-def dummy_process_waveforms(path):
-    """A way of identifying which file the dummy waveform comes from."""
-    filename_split = path.split(os.sep)[-1].split('.')[0].split('_')
-    ident = filename_split[0]
-    is_happy = filename_split[1] == 'happy'
-
-    frequency = 123
-
-    return (frequency, np.array([int(ident) * 2]) + int(is_happy))
-
-
-def dummy_process_spectrograms(waveform, *unused):
-    times = np.array([1, 2])
-    frequencies = np.array([3, 4])
-    return (frequencies, times, np.eye(2) * waveform)
 
 
 class DummyDatasource(Datasource):
