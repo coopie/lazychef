@@ -1,5 +1,5 @@
 h5py==2.6.0
-numpy==1.11.3
+numpy==1.22.0
 py==1.4.32
 pytest==3.0.5
 PyYAML==3.12
